@@ -1,1 +1,2 @@
 for repl: while instead of main inside main as recursion may cause buffer overflow if it runs too long.
+exit 0 check to break loop
