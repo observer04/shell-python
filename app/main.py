@@ -5,7 +5,7 @@ import sys
 BUILTINS = {
     "exit": lambda code=0, *_: sys.exit(int(code)),
     "echo": lambda *args: print(" ".join(args)),
-    "type": lambda cmd, *_: print(f"{cmd} is a shell builtin") if cmd in BUILTINS 
+    "type": lambda cmd, *_: print(f"{cmd} is a shell builtin") if cmd in BUILTINS       #only get first string ignore rest
     else print(f"{cmd} not found")
 }
 
