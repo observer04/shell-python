@@ -2,6 +2,8 @@ import builtins
 import cmd
 import sys
 import shutil # copy and archive dir trees
+import subprocess
+
 
 def type_cmd(cmd, *_):
     if cmd in BUILTINS:
@@ -31,8 +33,12 @@ def main():
         if cmd in BUILTINS:
             BUILTINS[cmd](*args)    # ["Hello", "World"], *args becomes "Hello", "World"
         else :
-            print(f"{cmd}: command not found")
-        
+            path = shutil.which(cmd)        #doesnt need full path so just check if cmd exists in path
+            if path:
+                subprocess.run([cmd] + args)
+            else :
+                print(f"{cmd}: command not found")
+            
         
         
 if __name__ == "__main__":
