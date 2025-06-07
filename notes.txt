@@ -1,3 +1,6 @@
 for repl: while instead of main inside main as recursion may cause buffer overflow if it runs too long.
 exit 0 check to break loop
 so flush literally flushes the buffer which had write's args and without it stdout would have waited till program execution completion or \n appears
+split command into strings in a list 
+builtin dictionary better than switch or if. then only one if cmd is in dictionary or not
+lamda: one line functions : lamda *args: expression and *args will take a string list > to tuppe *_ to ignore extra args
