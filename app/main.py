@@ -1,14 +1,22 @@
 import builtins
 import cmd
 import sys
+import shutil # copy and archive dir trees
+
+def type_cmd(cmd, *_):
+    if cmd in BUILTINS:
+        print(f"{cmd} is a shell builtin")
+    elif path:=shutil.which(cmd):       #like os.environ.get("PATH")
+        print(f"{cmd} is {path}")
+    else:           
+        print(f"{cmd}: not found")
 
 BUILTINS = {
     "exit": lambda code=0, *_: sys.exit(int(code)),
     "echo": lambda *args: print(" ".join(args)),
-    "type": lambda cmd, *_: print(f"{cmd} is a shell builtin") if cmd in BUILTINS       #only get first string ignore rest
-    else print(f"{cmd} not found")
+    "type": type_cmd,
 }
-
+        
 def main():
     while True:
         # Uncomment this block to pass the first stage
