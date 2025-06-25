@@ -4,3 +4,13 @@ so flush literally flushes the buffer which had write's args and without it stdo
 split command into strings in a list 
 builtin dictionary better than switch or if. then only one if cmd is in dictionary or not
 lamda: one line functions : lamda *args: expression and *args will take a string list > to tuppe *_ to ignore extra args
+
+path : env variable : stores dirs containing executable programs. 
+program received> search dirs listed in path separated by colon> print first finding path/to/cmd else not.
+walrus op > := assign and check
+shutil.which("cmd") > strings the dirs in PATH variable of the os's shell 
+shutil module > high level file operations like copy, move, delete, etc.
+
+subprocess > start new process, connect to input/output/error pipes, and obtain return codes.
+.run > run command with args, wait to complete, returns comp proc instance stdin &stderr need to be set to subprocess.PIPE to capture output 
+tester prepends custom path to tester's OS PATH 

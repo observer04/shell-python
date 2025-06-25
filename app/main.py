@@ -3,7 +3,7 @@ import cmd
 import sys
 import shutil # copy and archive dir trees
 import subprocess
-
+import os
 
 def type_cmd(cmd, *_):
     if cmd in BUILTINS:
@@ -17,6 +17,7 @@ BUILTINS = {
     "exit": lambda code=0, *_: sys.exit(int(code)),
     "echo": lambda *args: print(" ".join(args)),
     "type": type_cmd,
+    "pwd" : lambda *_ : print(os.getcwd()),
 }
         
 def main():
