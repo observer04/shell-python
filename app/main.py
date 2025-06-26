@@ -4,7 +4,6 @@ import sys
 import shutil # copy and archive dir trees
 import subprocess
 import os
-from tkinter import NO
 
 def type_cmd(cmd, *_):
     if cmd in BUILTINS:
