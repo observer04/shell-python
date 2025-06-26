@@ -61,7 +61,7 @@ def parse_redirection(args):
             else:
                 print('Error: missing filename after >')
                 return None, None, None, None, None, None
-        elif args[i] == '>>':
+        elif args[i] == '>>'or args[i] == '1>>':
             if i + 1 < len(args):
                 stdout_file = args[i + 1].strip('"\'')
                 stdout_append = True
