@@ -21,7 +21,42 @@ def cdh(path=None, *_):
         os.chdir(path)
     except FileNotFoundError:
         print(f"cd: {path}: No such file or directory")
+"""
+import shlex
 
+def parse_args(line):
+    return shlex.split(line)
+ 
+"""
+        
+def parse_args(line):
+    args = []
+    cur = ''
+    in_single_quote = False
+    i = 0
+    while i< len(line):
+        c=line[i]
+        if c == "'" and not in_single_quote:
+            in_single_quote = True
+            i +=1
+            continue
+        elif c == "'" and in_single_quote:
+            in_single_quote = False
+            i +=1
+            continue
+        if in_single_quote:
+            cur += c
+        elif c.isspace():         #if next char outside '' is space cur is a one word arg.
+            if cur !='':
+                args.append(cur)
+                cur = ''
+        else:                   #echo ' osme  s' test 's d' first echo
+            cur +=c
+        i+=1
+    if cur != '':
+        args.append(cur)
+    return args
+    
 BUILTINS = {
     "exit": lambda code=0, *_: sys.exit(int(code)),
     "echo": lambda *args: print(" ".join(args)),
@@ -36,7 +71,7 @@ def main():
         sys.stdout.write("$ ")
         sys.stdout.flush() 
         # Wait for user input
-        command= input().split()
+        command= parse_args(input())
         #separate cmd and args
         cmd = command[0]
         args= command[1:] # a list of rest strings
