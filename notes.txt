@@ -29,5 +29,50 @@ The with statement calls the file object's __enter__ method at the start (openin
 //redirection parsing
 scan all args for >, >>, <, 1> (and 2> if needed). only the last one of each type is used, like bash. skip both the operator and its filename in the loop (i += 2). strip quotes from filenames after redirection ops so "file.txt" works as file.txt
 
+//data-driven redirection parsing
+use an ops dict mapping operators (>, 1>, >>, <, 2>, 2>>) to target fields and append flags. scan args with a while loop and manual i += 2 to skip operator+filename. last redirection wins, strip wrapping quotes, leave filtered args for execution.
+
+//dynamic redirection contexts
+use contextlib.ExitStack to open and register stdin/stdout/stderr files dynamically. enter redirect_stdout and redirect_stderr for builtins or pass file handles to subprocess for externals. on stack exit all files close and contexts revert automatically.
+
 //redirection for builtins
 if redirection is set, use context manager (with redirect_stdout) to temporarily send output to file for builtins like echo, pwd, etc. so echo hi > file.txt works for both builtins and external commands.
+
+//context manager protocol (resouce that needs to be cleaned up after use)
+an object that implements __enter__ and __exit__ methods can be used with the with statement. __enter__ is called at the start of the block,and __exit__ at the end. 
+this allows for resource man like opening files, redirecting output. like redirect_stdout temporarily sends output to a file, and when the block ends, it restores the original stdout. this is useful for builtins like echo or pwd that need to write to a file instead of the console.
+ex:
+with CM() as cm:
+   # inside block: CM().__enter__ has run
+#ends with block, CM().__exit__ runs automatically, restoring original state
+syntactic sugar for try/finally
+cm = CM()
+try:
+   cm.__enter__()
+finally:
+   cm.__exit__(None, None, None)
+
+//ExitStack for dynamic contexts
+contextlib.ExitStack allows you to manage multiple context managers dynamically. you can enter and exit multiple
+context managers within a single with block. this is useful when you need to open multiple files or redirect output dynamically based on conditions.
+lifo order: the last entered context manager is the first to exit, ensuring proper cleanup.
+ex:
+class ExitStack:
+    def __init__(self):   self._exit_callbacks = []
+    def enter_context(self, cm):
+        result = cm.__enter__()
+        self._exit_callbacks.append(cm.__exit__)
+        return result
+    def __exit__(self, exc_type, exc, tb):
+        # call all callbacks in reverse to unwind
+        for cb in reversed(self._exit_callbacks):
+            cb(exc_type, exc, tb)
+//exitstack implements stack with 1 empty list to hold exit callbacks. enter_context calls __enter__ on the context manager, stores its __exit__ in the stack, and returns the result. __exit__ calls all stored callbacks in reverse order .
+
+
+from contextlib import ExitStack
+
+with ExitStack() as stack:
+    f1 = stack.enter_context(open('out1.txt','w'))
+    f2 = stack.enter_context(open('out2.txt','w'))
+    # both files will be closed automatically when block ends

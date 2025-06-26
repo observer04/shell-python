@@ -1,11 +1,9 @@
-from ast import arg
-import builtins
-import cmd
 import sys
 import shutil # copy and archive dir trees
 import subprocess
 import os
-from contextlib import redirect_stdout, redirect_stderr
+from contextlib import ExitStack, redirect_stdout, redirect_stderr
+import shlex
 
 def type_cmd(cmd, *_):
     if cmd in BUILTINS:
@@ -24,82 +22,50 @@ def cdh(path=None, *_):
     except FileNotFoundError:
         print(f"cd: {path}: No such file or directory")
 
-import shlex
+
 
 def parse_args(line):
     try:
         return shlex.split(line)
     except ValueError as e:
-        # Handle malformed quotes with more sophisticated parsing
         if "No closing quotation" in str(e):
-            print(f"Warning: Malformed quotes detected. Using simple parsing.")
             return line.split()
         else:
-            # Re-raise other shlex errors
             raise
  
 def parse_redirection(args):
-    """
-    Parses args for redirection operators and returns:
-    (filtered_args, stdin_file, stdout_file, stdout_append)
-    Only the last redirection of each type is used.
-    """
-    stdin_file = None
-    stdout_file = None
-    stdout_append = False
-    stderr_file = None
-    stderr_append = False
-    filtered_args = []
+    ops = {
+        '>':   ('stdout_file', False),
+        '1>':  ('stdout_file', False),
+        '1>>': ('stdout_file', True),
+        '>>':  ('stdout_file', True),
+        '<':   ('stdin_file',  False),
+        '2>':  ('stderr_file', False),
+        '2>>': ('stderr_file', True),
+    }
+    std = {
+        'stdin_file': None,
+        'stdout_file': None, 'stdout_append': False,
+        'stderr_file': None, 'stderr_append': False
+    }
+    filtered = []
     i = 0
     while i < len(args):
-        if args[i] in ('>', '1>'):
-            if i + 1 < len(args):          
-                stdout_file = args[i + 1].strip('"\'')
-                stdout_append = False
-                i += 2      # skip the redirect op and the stdout_file from filtered_args
-                continue
-            else:
-                print('Error: missing filename after >')
-                return None, None, None, None, None, None
-        elif args[i] == '>>'or args[i] == '1>>':
-            if i + 1 < len(args):
-                stdout_file = args[i + 1].strip('"\'')
-                stdout_append = True
-                i += 2
-                continue
-            else:
-                print('Error: missing filename after >>')
-                return None, None, None, None, None, None
-        elif args[i] == '<':
-            if i + 1 < len(args):
-                stdin_file = args[i + 1].strip('"\'')
-                i += 2
-                continue
-            else:
-                print('Error: missing filename after <')
-                return None, None, None, None, None, None
-        elif args[i] == '2>':
-            if i + 1 < len(args):
-                stderr_file = args[i + 1].strip('"\'')
-                stderr_append = False
-                i += 2
-                continue
-            else:
-                print('Error: missing filename after 2>')
-                return None, None, None, None, None, None
-        elif args[i] == '2>>':
-            if i + 1 < len(args):
-                stderr_file = args[i + 1].strip('"\'')
-                stderr_append = True
-                i += 2
-                continue
-            else:
-                print('Error: missing filename after 2>>')
-                return None, None, None, None, None, None
+        tok = args[i]
+        if tok in ops:
+            field, is_append = ops[tok]
+            if i+1 >= len(args):
+                print(f"Error: missing filename after {tok}")
+                return None, *(None,)*5
+            name = args[i+1].strip('"\'')
+            std[field] = name
+            if field == 'stdout_file' and is_append: std['stdout_append'] = True
+            if field == 'stderr_file' and is_append: std['stderr_append'] = True
+            i += 2
         else:
-            filtered_args.append(args[i])
+            filtered.append(tok)
             i += 1
-    return filtered_args, stdin_file, stdout_file, stdout_append, stderr_file, stderr_append
+    return filtered, std['stdin_file'], std['stdout_file'], std['stdout_append'], std['stderr_file'], std['stderr_append']
 
     
 BUILTINS = {
@@ -110,6 +76,37 @@ BUILTINS = {
     "cd"  : cdh
 }
         
+def run_cmd(cmd, args, stdin_f, stdout_f, stdout_app, stderr_f, stderr_app):
+    with ExitStack() as stack:
+        # 1) stdin
+        if stdin_f:
+            f = open(stdin_f, 'r')
+            stack.enter_context(f)
+            stack.enter_context(lambda: None)  # dummy to ensure close
+        
+        # 2) stdout
+        if stdout_f:
+            out = open(stdout_f, 'a' if stdout_app else 'w')
+            stack.enter_context(out)
+            stack.enter_context(redirect_stdout(out))
+        
+        # 3) stderr
+        if stderr_f:
+            err = open(stderr_f, 'a' if stderr_app else 'w')
+            stack.enter_context(err)
+            stack.enter_context(redirect_stderr(err))
+
+        # 4) Execute
+        if cmd in BUILTINS:
+            BUILTINS[cmd](*args)
+        else:
+            subprocess.run(
+                [cmd, *args],
+                stdin=(f if stdin_f else None),
+                stdout=(out if stdout_f else None),
+                stderr=(err if stderr_f else None)
+            )
+
 def main():
     while True:
         sys.stdout.write("$ ")
@@ -127,56 +124,11 @@ def main():
         if result is None:
             continue
         cmd_args, stdin_file, stdout_file, stdout_append, stderr_file, stderr_append = result
-        stdin = None
-        stdout = None
-        stderr = None
         try:
-            if stdin_file:
-                stdin = open(stdin_file, 'r')
-            if stdout_file:
-                mode = 'a' if stdout_append else 'w'
-                stdout = open(stdout_file, mode)
-            if stderr_file:
-                mode = 'a' if stderr_append else 'w'
-                stderr = open(stderr_file, mode)
+            run_cmd(cmd, cmd_args, stdin_file, stdout_file, stdout_append, stderr_file, stderr_append)
         except Exception as e:
-            print(f"Redirection error: {e}")
-            if stdin:
-                stdin.close()
-            if stdout:
-                stdout.close()
-            if stderr:
-                stderr.close()
-            continue
-        # Builtins
-        if cmd in BUILTINS:
-            ctx_stdout = redirect_stdout(stdout) if stdout else None
-            ctx_stderr = redirect_stderr(stderr) if stderr else None
-            with ctx_stdout or dummy_context(), ctx_stderr or dummy_context():
-                BUILTINS[cmd](*cmd_args)
-        else:
-            path = shutil.which(cmd)
-            if path:
-                try:
-                    subprocess.run([cmd] + cmd_args, stdin=stdin, stdout=stdout or sys.stdout, stderr=stderr or sys.stderr)
-                except Exception as e:
-                    print(f"Execution error: {e}")
-            else:
-                print(f"{cmd}: command not found")
-        if stdin:
-            stdin.close()
-        if stdout:
-            stdout.close()
-        if stderr:
-            stderr.close()
+            print(f"{cmd}: command not found")
 
-# Add a dummy context manager for cases where no redirection is needed
-from contextlib import contextmanager
-def dummy_context():
-    @contextmanager
-    def _dummy():
-        yield
-    return _dummy()
 
 if __name__ == "__main__":
     main()
