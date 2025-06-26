@@ -47,6 +47,8 @@ def parse_redirection(args):
     stdin_file = None
     stdout_file = None
     stdout_append = False
+    stderr_file = None
+    stderr_append = False
     filtered_args = []
     i = 0
     while i < len(args):
@@ -58,7 +60,7 @@ def parse_redirection(args):
                 continue
             else:
                 print('Error: missing filename after >')
-                return None, None, None, None
+                return None, None, None, None, None, None
         elif args[i] == '>>':
             if i + 1 < len(args):
                 stdout_file = args[i + 1].strip('"\'')
@@ -67,7 +69,7 @@ def parse_redirection(args):
                 continue
             else:
                 print('Error: missing filename after >>')
-                return None, None, None, None
+                return None, None, None, None, None, None
         elif args[i] == '<':
             if i + 1 < len(args):
                 stdin_file = args[i + 1].strip('"\'')
@@ -75,11 +77,29 @@ def parse_redirection(args):
                 continue
             else:
                 print('Error: missing filename after <')
-                return None, None, None, None
+                return None, None, None, None, None, None
+        elif args[i] == '2>':
+            if i + 1 < len(args):
+                stderr_file = args[i + 1].strip('"\'')
+                stderr_append = False
+                i += 2
+                continue
+            else:
+                print('Error: missing filename after 2>')
+                return None, None, None, None, None, None
+        elif args[i] == '2>>':
+            if i + 1 < len(args):
+                stderr_file = args[i + 1].strip('"\'')
+                stderr_append = True
+                i += 2
+                continue
+            else:
+                print('Error: missing filename after 2>>')
+                return None, None, None, None, None, None
         else:
             filtered_args.append(args[i])
             i += 1
-    return filtered_args, stdin_file, stdout_file, stdout_append
+    return filtered_args, stdin_file, stdout_file, stdout_append, stderr_file, stderr_append
 
     
 BUILTINS = {
@@ -103,35 +123,42 @@ def main():
         cmd = command[0]
         args = command[1:]
         # Parse redirections
-        cmd_args, stdin_file, stdout_file, stdout_append = parse_redirection(args)
-        if cmd_args is None:
+        result = parse_redirection(args)
+        if result is None:
             continue
-        
-        # Setup redirection
+        cmd_args, stdin_file, stdout_file, stdout_append, stderr_file, stderr_append = result
         stdin = None
         stdout = None
+        stderr = None
         try:
             if stdin_file:
                 stdin = open(stdin_file, 'r')
             if stdout_file:
                 mode = 'a' if stdout_append else 'w'
                 stdout = open(stdout_file, mode)
+            if stderr_file:
+                mode = 'a' if stderr_append else 'w'
+                stderr = open(stderr_file, mode)
         except Exception as e:
             print(f"Redirection error: {e}")
+            if stdin:
+                stdin.close()
+            if stdout:
+                stdout.close()
+            if stderr:
+                stderr.close()
             continue
-        
         # Builtins
         if cmd in BUILTINS:
-            if stdout:
-                with redirect_stdout(stdout):
-                    BUILTINS[cmd](*cmd_args)
-            else:
+            ctx_stdout = redirect_stdout(stdout) if stdout else None
+            ctx_stderr = redirect_stderr(stderr) if stderr else None
+            with ctx_stdout or dummy_context(), ctx_stderr or dummy_context():
                 BUILTINS[cmd](*cmd_args)
         else:
             path = shutil.which(cmd)
             if path:
                 try:
-                    subprocess.run([cmd] + cmd_args, stdin=stdin, stdout=stdout or sys.stdout)
+                    subprocess.run([cmd] + cmd_args, stdin=stdin, stdout=stdout or sys.stdout, stderr=stderr or sys.stderr)
                 except Exception as e:
                     print(f"Execution error: {e}")
             else:
@@ -140,6 +167,16 @@ def main():
             stdin.close()
         if stdout:
             stdout.close()
+        if stderr:
+            stderr.close()
+
+# Add a dummy context manager for cases where no redirection is needed
+from contextlib import contextmanager
+def dummy_context():
+    @contextmanager
+    def _dummy():
+        yield
+    return _dummy()
 
 if __name__ == "__main__":
     main()
