@@ -16,7 +16,8 @@ def type_cmd(cmd, *_):
 def cdh(path=None, *_):
     try:
         if path is None:
-            path = os.path.expanduser("~")
+            path = "~"
+        path = os.path.expanduser(path)
         os.chdir(path)
     except FileNotFoundError:
         print(f"cd: {path}: No such file or directory")
@@ -41,7 +42,7 @@ def main():
         args= command[1:] # a list of rest strings
         #check cmd
         if cmd in BUILTINS:
-            BUILTINS[cmd](*args)    # ["Hello", "World"], *args becomes "Hello", "World"
+            BUILTINS[cmd](*args)    # *> unpack =["Hello", "World"], *args becomes "Hello", "World"
         else :
             path = shutil.which(cmd)        #doesnt need full path so just check if cmd exists in path
             if path:

@@ -14,3 +14,11 @@ shutil module > high level file operations like copy, move, delete, etc.
 subprocess > start new process, connect to input/output/error pipes, and obtain return codes.
 .run > run command with args, wait to complete, returns comp proc instance stdin &stderr need to be set to subprocess.PIPE to capture output 
 tester prepends custom path to tester's OS PATH 
+
+cd function:
+expanduser with ~ It checks the value of the HOME environment variable (using os.environ["HOME"]) and replaces the tilde with the user's home directory path then os.chdir changes the current working directory to the specified path.
+
+//builtin refresher
+The shell parses the command and arguments.
+It looks up the command in BUILTINS and calls the function with the arguments.
+Python’s *args syntax handles the unpacking, so your builtin functions receive the right arguments automatically.
