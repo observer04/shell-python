@@ -4,6 +4,7 @@ import sys
 import shutil # copy and archive dir trees
 import subprocess
 import os
+from tkinter import NO
 
 def type_cmd(cmd, *_):
     if cmd in BUILTINS:
@@ -12,12 +13,19 @@ def type_cmd(cmd, *_):
         print(f"{cmd} is {path}")
     else:           
         print(f"{cmd}: not found")
+        
+def cdh(path=None, *_):
+    try:
+        os.chdir(path)
+    except FileNotFoundError:
+        print(f"cd: {path}: No such file or directory")
 
 BUILTINS = {
     "exit": lambda code=0, *_: sys.exit(int(code)),
     "echo": lambda *args: print(" ".join(args)),
     "type": type_cmd,
     "pwd" : lambda *_ : print(os.getcwd()),
+    "cd"  : cdh
 }
         
 def main():
