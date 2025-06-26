@@ -15,6 +15,8 @@ def type_cmd(cmd, *_):
         
 def cdh(path=None, *_):
     try:
+        if path is None:
+            path = os.path.expanduser("~")
         os.chdir(path)
     except FileNotFoundError:
         print(f"cd: {path}: No such file or directory")
