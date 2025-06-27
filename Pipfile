@@ -6,7 +6,6 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-prompt_toolkit = "*"
 
 [dev-packages]
 

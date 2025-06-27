@@ -5,12 +5,7 @@ import os
 from contextlib import ExitStack, redirect_stdout, redirect_stderr
 import shlex
 import glob
-# ...removed import readline...
-
-# add prompt_toolkit imports for autocompletion
-from prompt_toolkit import PromptSession
-from prompt_toolkit.completion import WordCompleter, PathCompleter, merge_completers
-
+import readline
 def type_cmd(cmd, *_):
     if cmd in BUILTINS:
         print(f"{cmd} is a shell builtin")
@@ -125,18 +120,28 @@ def get_all_commands():
     return cmds
     
 ALL_COMMANDS = get_all_commands()
-# setup prompt_toolkit completer
-_word_completer = WordCompleter(list(ALL_COMMANDS), ignore_case=True)
-_path_completer = PathCompleter(expanduser=True)
-_merged_completer = merge_completers([_word_completer, _path_completer])
-_session = PromptSession(completer=_merged_completer)
+
+def completer(text, state): 
+    line = readline.get_line_buffer()
+    parts = line.split()
+    if len(parts) == 0 or (len(parts) == 1 and not line.endswith(' ')):
+        options = [cmd for cmd in ALL_COMMANDS if cmd.startswith(text)]
+    else:
+        options = glob.glob(text + '*')
+    try:
+        return options[state] + ' '
+    except IndexError:
+        return None
 
 
 def main():
+    readline.set_completer(completer)
+    readline.parse_and_bind("tab: complete")
     while True:
+        sys.stdout.write("$ ")
+        sys.stdout.flush()
         try:
-            text = _session.prompt('$ ')
-            command = parse_args(text)
+            command = parse_args(input())
         except EOFError:
             break
         if not command:
@@ -152,6 +157,7 @@ def main():
             run_cmd(cmd, cmd_args, stdin_file, stdout_file, stdout_append, stderr_file, stderr_append)
         except Exception as e:
             print(f"{cmd}: command not found")
+
 
 if __name__ == "__main__":
     main()
