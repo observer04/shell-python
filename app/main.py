@@ -121,22 +121,58 @@ def get_all_commands():
     
 ALL_COMMANDS = get_all_commands()
 
-def completer(text, state): 
-    line = readline.get_line_buffer()
-    parts = line.split()
-    if len(parts) == 0 or (len(parts) == 1 and not line.endswith(' ')):
-        options = [cmd for cmd in ALL_COMMANDS if cmd.startswith(text)]
-    else:
+# Encapsulated completer with bash-like double-TAB behavior
+class BashCompleter:
+    def __init__(self, commands):
+        self.commands = commands
+        self.last_prefix = None
+        self.tab_count = 0
+
+    def reset(self):
+        self.last_prefix = None
+        self.tab_count = 0
+
+    def __call__(self, text, state):
+        line = readline.get_line_buffer()
+        parts = line.split()
+        # Completing commands at start of line
+        if len(parts) == 0 or (len(parts) == 1 and not line.endswith(' ')):
+            options = [cmd for cmd in self.commands if cmd.startswith(text)]
+            prefix = text
+            if len(options) > 1:
+                # multiple matches: bell or list
+                if self.last_prefix == prefix and self.tab_count == 1:
+                    print('\n' + '  '.join(options))
+                    sys.stdout.write("$ ")
+                    sys.stdout.flush()
+                    self.reset()
+                else:
+                    print('\a', end='', flush=True)
+                    self.last_prefix = prefix
+                    self.tab_count = 1
+                return None
+            else:
+                # single or no match: reset and return candidate
+                self.reset()
+                try:
+                    return (options[state] + ' ') if state < len(options) else None
+                except Exception:
+                    return None
+        # Completing filenames after command
         options = glob.glob(text + '*')
-    try:
-        return options[state] + ' '
-    except IndexError:
-        return None
+        self.reset()
+        try:
+            return (options[state] + ' ') if state < len(options) else None
+        except Exception:
+            return None
 
 
 def main():
+    # setup bash-like completion via BashCompleter
+    completer = BashCompleter(ALL_COMMANDS)
     readline.set_completer(completer)
     readline.parse_and_bind("tab: complete")
+    readline.set_pre_input_hook(completer.reset)
     while True:
         sys.stdout.write("$ ")
         sys.stdout.flush()
