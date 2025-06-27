@@ -79,3 +79,12 @@ with ExitStack() as stack:
 
     # readline insights:
     readline enables tab completion and history for interactive shells. Use readline.set_completer to define custom completions and readline.parse_and_bind("tab: complete") to bind Tab for completion. Save/load history with readline.write_history_file/read_history_file.
+
+//Stateful Bash-like Completer Class
+Encapsulates state (last_prefix, tab_count) in a class to avoid globals.
+__init__ sets up initial state (commands, counters).
+__call__ method makes the instance callable like a function, which readline.set_completer expects.
+reset method for the pre_input_hook to clear state on new input.
+Double-TAB Logic:
+1. First TAB on multiple matches -> ring bell, save state (prefix and tab_count=1).
+2. Second TAB -> print sorted matches, reprint prompt, insert common prefix with readline.insert_text and redisplay.

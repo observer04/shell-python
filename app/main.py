@@ -142,9 +142,15 @@ class BashCompleter:
             if len(options) > 1:
                 # multiple matches: bell or list
                 if self.last_prefix == prefix and self.tab_count == 1:
-                    print('\n' + '  '.join(options))
+                    # print sorted matches
+                    matches = sorted(options)
+                    print('\n' + '  '.join(matches))
+                    # reprint prompt then insert common prefix
                     sys.stdout.write("$ ")
                     sys.stdout.flush()
+                    common = os.path.commonprefix(matches)
+                    readline.insert_text(common)
+                    readline.redisplay()
                     self.reset()
                 else:
                     print('\a', end='', flush=True)
@@ -168,7 +174,6 @@ class BashCompleter:
 
 
 def main():
-    # setup bash-like completion via BashCompleter
     completer = BashCompleter(ALL_COMMANDS)
     readline.set_completer(completer)
     readline.parse_and_bind("tab: complete")
