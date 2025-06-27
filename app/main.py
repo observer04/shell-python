@@ -4,7 +4,8 @@ import subprocess
 import os
 from contextlib import ExitStack, redirect_stdout, redirect_stderr
 import shlex
-
+import glob
+import readline
 def type_cmd(cmd, *_):
     if cmd in BUILTINS:
         print(f"{cmd} is a shell builtin")
@@ -107,7 +108,35 @@ def run_cmd(cmd, args, stdin_f, stdout_f, stdout_app, stderr_f, stderr_app):
                 stderr=(err if stderr_f else None)
             )
 
+def get_all_commands():
+    paths= os.environ.get("PATH", "").split(os.pathsep)
+    cmds= set(BUILTINS)
+    for path in paths:
+        if os.path.isdir(path):
+            for fname in os.listdir(path):
+                fpath = os.path.join(path, fname)
+                if os.access(fpath, os.X_OK) and not os.path.isdir(fpath):
+                    cmds.add(fname)
+    return cmds
+    
+ALL_COMMANDS = get_all_commands()
+
+def completer(text, state): 
+    line = readline.get_line_buffer()
+    parts = line.split()
+    if len(parts) == 0 or (len(parts) == 1 and not line.endswith(' ')):
+        options = [cmd for cmd in ALL_COMMANDS if cmd.startswith(text)]
+    else:
+        options = glob.glob(text + '*')
+    try:
+        return options[state] + ' '
+    except IndexError:
+        return None
+
+
 def main():
+    readline.set_completer(completer)
+    readline.parse_and_bind("tab: complete")
     while True:
         sys.stdout.write("$ ")
         sys.stdout.flush()

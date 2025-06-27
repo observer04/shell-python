@@ -73,6 +73,9 @@ class ExitStack:
 from contextlib import ExitStack
 
 with ExitStack() as stack:
-    f1 = stack.enter_context(open('out1.txt','w'))
-    f2 = stack.enter_context(open('out2.txt','w'))
-    # both files will be closed automatically when block ends
+    f1 = stack.enter_context(open('out1.txt', 'w'))
+    f2 = stack.enter_context(open('out2.txt', 'w'))
+    # both files auto-close when block ends
+
+    # readline insights:
+    readline enables tab completion and history for interactive shells. Use readline.set_completer to define custom completions and readline.parse_and_bind("tab: complete") to bind Tab for completion. Save/load history with readline.write_history_file/read_history_file.
