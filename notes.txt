@@ -88,3 +88,5 @@ reset method for the pre_input_hook to clear state on new input.
 Double-TAB Logic:
 1. First TAB on multiple matches -> ring bell, save state (prefix and tab_count=1).
 2. Second TAB -> print sorted matches, reprint prompt, insert common prefix with readline.insert_text and redisplay.
+
+so readline provides an inbuilt register for the completion display matches hook but just the hook we have to define

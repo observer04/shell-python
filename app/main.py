@@ -121,63 +121,73 @@ def get_all_commands():
     
 ALL_COMMANDS = get_all_commands()
 
-# Encapsulated completer with bash-like double-TAB behavior
+# A simplified completer that provides matches to readline,
+# allowing readline's default behavior to handle common prefix completion.
 class BashCompleter:
     def __init__(self, commands):
         self.commands = commands
-        self.last_prefix = None
-        self.tab_count = 0
-
-    def reset(self):
-        self.last_prefix = None
-        self.tab_count = 0
+        self.matches = []
 
     def __call__(self, text, state):
         line = readline.get_line_buffer()
         parts = line.split()
-        # Completing commands at start of line
-        if len(parts) == 0 or (len(parts) == 1 and not line.endswith(' ')):
-            options = [cmd for cmd in self.commands if cmd.startswith(text)]
-            prefix = text
-            if len(options) > 1:
-                # multiple matches: bell or list
-                if self.last_prefix == prefix and self.tab_count == 1:
-                    # print sorted matches
-                    matches = sorted(options)
-                    print('\n' + '  '.join(matches))
-                    # reprint prompt then insert common prefix
-                    sys.stdout.write("$ ")
-                    sys.stdout.flush()
-                    common = os.path.commonprefix(matches)
-                    readline.insert_text(common)
-                    readline.redisplay()
-                    self.reset()
-                else:
-                    print('\a', end='', flush=True)
-                    self.last_prefix = prefix
-                    self.tab_count = 1
-                return None
-            else:
-                # single or no match: reset and return candidate
-                self.reset()
-                try:
-                    return (options[state] + ' ') if state < len(options) else None
-                except Exception:
+        if not parts or (len(parts) == 1 and not line.endswith(' ')):
+            options = sorted([cmd for cmd in self.commands if cmd.startswith(text)])
+            if state == 0:
+                if not options:
                     return None
-        # Completing filenames after command
-        options = glob.glob(text + '*')
-        self.reset()
-        try:
-            return (options[state] + ' ') if state < len(options) else None
-        except Exception:
+                common = os.path.commonprefix(options)
+                # If the common prefix is a unique match, append a space
+                if common and common != text:
+                    if options.count(common) == 1 or (len(options) == 1 and options[0] == common):
+                        return common + ' '
+                    return common
+                if len(options) == 1:
+                    return options[0] + ' '
+            if state < len(options):
+                return options[state]
+            return None
+        else:
+            options = sorted(glob.glob(text + '*'))
+            if state == 0:
+                if not options:
+                    return None
+                common = os.path.commonprefix(options)
+                if common and common != text:
+                    if options.count(common) == 1 or (len(options) == 1 and options[0] == common):
+                        return common + ' '
+                    return common
+                if len(options) == 1:
+                    return options[0] + ' '
+            if state < len(options):
+                return options[state]
             return None
 
 
+def redisplay_prompt(prompt="$ "):
+    sys.stdout.write('\r' + prompt + readline.get_line_buffer())
+    sys.stdout.flush()
+
+def completion_display_hook(substitution, matches, longest_match_length):
+    line_buffer = readline.get_line_buffer()
+    columns = os.environ.get("COLUMNS", 80)
+
+    print()
+
+    buffer = ""
+    for match in matches:
+        buffer += match + "  "
+    print(buffer)
+
+    redisplay_prompt()
+
+
 def main():
+    # setup bash-like completion via the simplified BashCompleter
     completer = BashCompleter(ALL_COMMANDS)
     readline.set_completer(completer)
     readline.parse_and_bind("tab: complete")
-    readline.set_pre_input_hook(completer.reset)
+    readline.set_completion_display_matches_hook(completion_display_hook)
     while True:
         sys.stdout.write("$ ")
         sys.stdout.flush()
