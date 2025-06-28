@@ -31,17 +31,18 @@ def cdh(path=None, *_):
 def history_cmd(*args):
     if args and args[0].isdigit():
         n = int(args[0])
-        start = max(1, readline.get_current_history_length() - n + 1)
-        end = readline.get_current_history_length() + 1
+        total = readline.get_current_history_length()
+        start = max(1, total - n + 1)
+        end = total + 1
         for i in range(start, end):
             item = readline.get_history_item(i)
             if item:
-                print(f"  {i}  {item}")
+                print(f"    {i}  {item}")
     else:
         for i in range(1, readline.get_current_history_length() + 1):
             item = readline.get_history_item(i)
             if item:
-                print(f"  {i}  {item}")
+                print(f"    {i}  {item}")
 
 
 def parse_args(line):
@@ -278,11 +279,15 @@ def main():
 
     # Setup history
     try:
-        if os.path.exists(HISTORY_FILE):
+        # Only load history if we're in an interactive terminal
+        if sys.stdin.isatty() and os.path.exists(HISTORY_FILE):
             readline.read_history_file(HISTORY_FILE)
     except (IOError, OSError):
         pass
-    atexit.register(lambda: readline.write_history_file(HISTORY_FILE))
+    
+    # Only save history if we're in an interactive terminal
+    if sys.stdin.isatty():
+        atexit.register(lambda: readline.write_history_file(HISTORY_FILE))
 
     # print("Shell started. Type 'exit' to quit.")
     
@@ -294,8 +299,12 @@ def main():
 
             # Don't add empty lines or duplicate consecutive lines to history
             if line.strip():
-                last_item = readline.get_history_item(readline.get_current_history_length())
-                if not last_item or last_item != line:
+                # Check if this is different from the last history item
+                last_item = None
+                if readline.get_current_history_length() > 0:
+                    last_item = readline.get_history_item(readline.get_current_history_length())
+                
+                if last_item != line:
                     readline.add_history(line)
 
             if '|' in line:
