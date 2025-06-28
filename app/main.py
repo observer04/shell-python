@@ -28,9 +28,20 @@ def cdh(path=None, *_):
         print(f"cd: {path}: No such file or directory")
 
 
-def history_cmd(*_):
-    for i in range(1, readline.get_current_history_length() + 1):
-        print(f"  {i}  {readline.get_history_item(i)}")
+def history_cmd(*args):
+    if args and args[0].isdigit():
+        n = int(args[0])
+        start = max(1, readline.get_current_history_length() - n + 1)
+        end = readline.get_current_history_length() + 1
+        for i in range(start, end):
+            item = readline.get_history_item(i)
+            if item:
+                print(f"  {i}  {item}")
+    else:
+        for i in range(1, readline.get_current_history_length() + 1):
+            item = readline.get_history_item(i)
+            if item:
+                print(f"  {i}  {item}")
 
 
 def parse_args(line):
@@ -180,13 +191,14 @@ def get_all_commands():
     cmds= set(BUILTINS)
     for path in paths:
         if os.path.isdir(path):
-            for fname in os.listdir(path):
-                fpath = os.path.join(path, fname)
-                if os.access(fpath, os.X_OK) and not os.path.isdir(fpath):
-                    cmds.add(fname)
+            try:
+                for fname in os.listdir(path):
+                    fpath = os.path.join(path, fname)
+                    if os.access(fpath, os.X_OK) and not os.path.isdir(fpath):
+                        cmds.add(fname)
+            except (PermissionError, FileNotFoundError):
+                continue
     return cmds
-    
-ALL_COMMANDS = get_all_commands()
 
 # A simplified completer that provides matches to readline,
 # allowing readline's default behavior to handle common prefix completion.
@@ -250,45 +262,65 @@ def completion_display_hook(substitution, matches, longest_match_length):
 
 
 def main():
+    # Get all commands at startup
+    all_commands = get_all_commands()
+    
     # setup bash-like completion via the simplified BashCompleter
-    completer = BashCompleter(ALL_COMMANDS)
+    completer = BashCompleter(all_commands)
     readline.set_completer(completer)
     readline.parse_and_bind("tab: complete")
     readline.set_completion_display_matches_hook(completion_display_hook)
 
     # Setup history
-    if os.path.exists(HISTORY_FILE):
-        readline.read_history_file(HISTORY_FILE)
-    atexit.register(readline.write_history_file, HISTORY_FILE)
+    try:
+        if os.path.exists(HISTORY_FILE):
+            readline.read_history_file(HISTORY_FILE)
+    except (IOError, OSError):
+        pass
+    atexit.register(lambda: readline.write_history_file(HISTORY_FILE))
 
+    # print("Shell started. Type 'exit' to quit.")
+    
     while True:
-        sys.stdout.write("$ ")
-        sys.stdout.flush()
         try:
-            line = input()
+            line = input("$ ")
             if not line.strip():
                 continue
-            
+
+            # Don't add empty lines or duplicate consecutive lines to history
+            if line.strip():
+                last_item = readline.get_history_item(readline.get_current_history_length())
+                if not last_item or last_item != line:
+                    readline.add_history(line)
+
             if '|' in line:
                 run_pipeline(line)
                 continue
 
             command = parse_args(line)
-        except EOFError:
-            break
-        if not command:
-            continue
-        cmd = command[0]
-        args = command[1:]
-        # Parse redirections
-        result = parse_redirection(args)
-        if result is None:
-            continue
-        cmd_args, stdin_file, stdout_file, stdout_append, stderr_file, stderr_append = result
-        try:
+            if not command:
+                continue
+
+            cmd = command[0]
+            args = command[1:]
+            
+            result = parse_redirection(args)
+            if result is None:
+                continue
+            
+            cmd_args, stdin_file, stdout_file, stdout_append, stderr_file, stderr_append = result
+            
             run_cmd(cmd, cmd_args, stdin_file, stdout_file, stdout_append, stderr_file, stderr_append)
+
+        except KeyboardInterrupt:
+            print() # Move to a new line after Ctrl+C
+            continue # Go to the next prompt
+        except EOFError:
+            print()  # Add newline before exit
+            break # Exit on Ctrl+D
         except Exception as e:
-            print(f"{cmd}: command not found")
+            # This will now only catch other runtime errors
+            print(f"An unexpected error occurred: {e}", file=sys.stderr)
 
 
 if __name__ == "__main__":
