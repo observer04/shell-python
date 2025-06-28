@@ -6,6 +6,10 @@ from contextlib import ExitStack, redirect_stdout, redirect_stderr
 import shlex
 import glob
 import readline
+import atexit
+
+HISTORY_FILE = os.path.expanduser("~/.your_shell_history")
+
 def type_cmd(cmd, *_):
     if cmd in BUILTINS:
         print(f"{cmd} is a shell builtin")
@@ -23,6 +27,10 @@ def cdh(path=None, *_):
     except FileNotFoundError:
         print(f"cd: {path}: No such file or directory")
 
+
+def history_cmd(*_):
+    for i in range(1, readline.get_current_history_length() + 1):
+        print(f"  {i}  {readline.get_history_item(i)}")
 
 
 def parse_args(line):
@@ -74,7 +82,8 @@ BUILTINS = {
     "echo": lambda *args: print(" ".join(args)),
     "type": type_cmd,
     "pwd" : lambda *_ : print(os.getcwd()),
-    "cd"  : cdh
+    "cd"  : cdh,
+    "history": history_cmd
 }
 
 def run_pipeline(line):
@@ -106,8 +115,7 @@ def run_pipeline(line):
             cmd = args[0]
             cmd_args, stdin_f, stdout_f, stdout_app, stderr_f, stderr_app = parse_redirection(args[1:])
             
-            # Note: Redirection from files within a pipeline is complex.
-            # This implementation focuses on piping between commands.
+           
             # For simplicity, file redirections inside a pipe are ignored,
             # except for the first command's input and last command's output.
 
@@ -247,6 +255,12 @@ def main():
     readline.set_completer(completer)
     readline.parse_and_bind("tab: complete")
     readline.set_completion_display_matches_hook(completion_display_hook)
+
+    # Setup history
+    if os.path.exists(HISTORY_FILE):
+        readline.read_history_file(HISTORY_FILE)
+    atexit.register(readline.write_history_file, HISTORY_FILE)
+
     while True:
         sys.stdout.write("$ ")
         sys.stdout.flush()
