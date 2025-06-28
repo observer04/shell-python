@@ -1,27 +1,29 @@
 [![progress-banner](https://backend.codecrafters.io/progress/shell/cc5284b5-9b5b-4647-b5aa-7672e5b407be)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
-This is a starting point for Python solutions to the
-["Build Your Own Shell" Challenge](https://app.codecrafters.io/courses/shell/overview).
+# Python Custom Shell
 
-In this challenge, you'll build your own POSIX compliant shell that's capable of
-interpreting shell commands, running external programs and builtin commands like
-cd, pwd, echo and more. Along the way, you'll learn about shell command parsing,
-REPLs, builtin commands, and more.
+This project is a custom POSIX-compliant shell built in Python. It's a lightweight, educational implementation that explores the core concepts behind how a command-line interface works.
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+This shell was developed as a personal project to understand the mechanics of shell design, including command parsing, process management, and system interactions. It demonstrates key OS concepts like file I/O redirection, pipelines, and environment variable handling in a simplified, pure-Python environment.
 
-# CodeCrafters Shell Challenge
-
-## Overview
-A custom shell implementation in Python for the CodeCrafters challenge.
+## Features
+*   **REPL (Read-Eval-Print Loop)**: An interactive shell environment.
+*   **Built-in Commands**: Supports `cd`, `pwd`, `echo`, `exit`, and `type`.
+*   **Command History**: Bash-like history with `history` command, file support (`HISTFILE`), and session management.
+*   **External Commands**: Executes external programs found in the system's `PATH`.
+*   **Pipelines (`|`)**: Chain commands together, piping the output of one to the input of another.
+*   **I/O Redirection**: Redirect `stdin`, `stdout`, and `stderr` using `<`, `>`, `>>`, `2>`, etc.
+*   **Tab Completion**: Basic completion for commands and file paths.
 
 ## Getting Started
-- Clone the repository
-- Run the shell:
-  ```bash
-  python app/main.py
-  ```
+
+To run the shell, simply execute the main script:
+
+```bash
+python3 app/main.py
+```
+
+You can then start typing commands as you would in a regular shell.
 
 ## Progress Log
 - **2025-06-07:** Set up REPL loop using `while` instead of recursion.
