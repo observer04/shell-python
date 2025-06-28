@@ -8,7 +8,7 @@ import glob
 import readline
 import atexit
 
-HISTORY_FILE = os.path.expanduser("~/.your_shell_history")
+HISTORY_FILE = os.path.expanduser(os.getenv("HISTFILE", "~/.your_shell_history"))
 
 # Wrap all history logic in a class
 class HistoryManager:
@@ -24,9 +24,10 @@ class HistoryManager:
                 readline.read_history_file(self.file)
                 self.session_start = readline.get_current_history_length()
                 self.last_append_pos = self.session_start
-                readline.set_history_length(1000)
+                readline.set_history_length(int(os.getenv("HISTSIZE", "1000")))
         except:
             pass
+    
     def save(self):
         try:
             # Check if we're in a test environment - don't save persistent history during tests
@@ -35,6 +36,23 @@ class HistoryManager:
                 d = os.path.dirname(self.file)
                 if d: os.makedirs(d, exist_ok=True)
                 readline.write_history_file(self.file)
+        except:
+            pass
+    
+    def append_to_file(self):
+        """Append new session commands to history file on exit"""
+        try:
+            # Check if we're in a test environment - don't save persistent history during tests
+            is_test = not (sys.stdin.isatty() and sys.stdout.isatty()) or os.getenv('TESTING')
+            if not is_test:
+                d = os.path.dirname(self.file)
+                if d: os.makedirs(d, exist_ok=True)
+                tot = readline.get_current_history_length()
+                with open(self.file, 'a') as fh:
+                    for i in range(self.session_start + 1, tot + 1):
+                        item = readline.get_history_item(i)
+                        if item:
+                            fh.write(item + '\n')
         except:
             pass
     def add(self, line):
@@ -52,14 +70,26 @@ class HistoryManager:
             mode=args[0]; f=args[1] if len(args)>1 else self.file
             try:
                 d=os.path.dirname(f);
-                if mode=='-c': readline.clear_history(); print("History cleared"); return
+                if mode=='-c': 
+                    readline.clear_history()
+                    self.session_start = 0
+                    self.last_append_pos = 0
+                    print("History cleared")
+                    return
                 if d: os.makedirs(d, exist_ok=True)
                 if mode=='-w': readline.write_history_file(f); return
-                if mode=='-r' and os.path.exists(f): readline.read_history_file(f); return
+                if mode=='-r' and os.path.exists(f): 
+                    readline.read_history_file(f)
+                    self.session_start = readline.get_current_history_length()
+                    self.last_append_pos = self.session_start
+                    return
                 if mode=='-a':
                     tot=readline.get_current_history_length()
                     with open(f,'a') as fh:
-                        for i in range(self.last_append_pos+1, tot+1): item=readline.get_history_item(i); fh.write(item+'\n')
+                        for i in range(self.last_append_pos+1, tot+1): 
+                            item=readline.get_history_item(i)
+                            if item:
+                                fh.write(item+'\n')
                     self.last_append_pos = tot
                     return
             except:
@@ -342,9 +372,9 @@ def completion_display_hook(substitution, matches, longest_match_length):
 
 
 def main():
-    # Load history and register save on exit
+    # Load history and register append on exit (Bash-like behavior)
     history_mgr.load()
-    atexit.register(history_mgr.save)
+    atexit.register(history_mgr.append_to_file)
 
     # Setup bash-like completion via the simplified BashCompleter
     completer = BashCompleter(get_all_commands())
