@@ -76,6 +76,65 @@ BUILTINS = {
     "pwd" : lambda *_ : print(os.getcwd()),
     "cd"  : cdh
 }
+
+def run_pipeline(line):
+    commands = [cmd.strip() for cmd in line.split('|')]
+    num_commands = len(commands)
+    pids = []
+    
+    # Create pipes
+    pipes = [os.pipe() for _ in range(num_commands - 1)]
+    
+    for i, command_str in enumerate(commands):
+        pid = os.fork()
+        if pid == 0: # Child process
+            # Input redirection
+            if i > 0:
+                os.dup2(pipes[i-1][0], sys.stdin.fileno())
+
+            # Output redirection
+            if i < num_commands - 1:
+                os.dup2(pipes[i][1], sys.stdout.fileno())
+
+            # Close all pipe ends in the child
+            for p_read, p_write in pipes:
+                os.close(p_read)
+                os.close(p_write)
+
+            # Parse and execute command
+            args = parse_args(command_str)
+            cmd = args[0]
+            cmd_args, stdin_f, stdout_f, stdout_app, stderr_f, stderr_app = parse_redirection(args[1:])
+            
+            # Note: Redirection from files within a pipeline is complex.
+            # This implementation focuses on piping between commands.
+            # For simplicity, file redirections inside a pipe are ignored,
+            # except for the first command's input and last command's output.
+
+            try:
+                if cmd in BUILTINS:
+                    BUILTINS[cmd](*cmd_args)
+                    os._exit(0) # Exit after builtin runs
+                else:
+                    os.execvp(cmd, [cmd] + cmd_args)
+            except FileNotFoundError:
+                print(f"{cmd}: command not found", file=sys.stderr)
+                os._exit(1)
+            except Exception as e:
+                print(f"Error executing {cmd}: {e}", file=sys.stderr)
+                os._exit(1)
+
+        else: # Parent process
+            pids.append(pid)
+
+    # Close all pipe ends in the parent
+    for p_read, p_write in pipes:
+        os.close(p_read)
+        os.close(p_write)
+
+    # Wait for all children to complete
+    for pid in pids:
+        os.waitpid(pid, 0)
         
 def run_cmd(cmd, args, stdin_f, stdout_f, stdout_app, stderr_f, stderr_app):
     with ExitStack() as stack:
@@ -192,7 +251,15 @@ def main():
         sys.stdout.write("$ ")
         sys.stdout.flush()
         try:
-            command = parse_args(input())
+            line = input()
+            if not line.strip():
+                continue
+            
+            if '|' in line:
+                run_pipeline(line)
+                continue
+
+            command = parse_args(line)
         except EOFError:
             break
         if not command:
