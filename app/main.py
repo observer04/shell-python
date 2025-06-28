@@ -29,7 +29,47 @@ def cdh(path=None, *_):
 
 
 def history_cmd(*args):
-    if args and args[0].isdigit():
+    """Enhanced history command with support for:
+    - history: show all history
+    - history n: show last n entries
+    - history -c: clear history
+    - history -w [file]: write current history to file
+    - history -r [file]: read history from file
+    """
+    if not args:
+        # Show all history
+        for i in range(1, readline.get_current_history_length() + 1):
+            item = readline.get_history_item(i)
+            if item:
+                print(f"    {i}  {item}")
+    elif args[0] == "-c":
+        # Clear history
+        readline.clear_history()
+        print("History cleared")
+    elif args[0] == "-w":
+        # Write history to file
+        file_path = args[1] if len(args) > 1 else HISTORY_FILE
+        try:
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            readline.write_history_file(file_path)
+            print(f"History written to {file_path}")
+        except (IOError, OSError) as e:
+            print(f"Error writing history: {e}")
+    elif args[0] == "-r":
+        # Read history from file
+        file_path = args[1] if len(args) > 1 else HISTORY_FILE
+        try:
+            if os.path.exists(file_path):
+                readline.read_history_file(file_path)
+                # Don't print success message to avoid interfering with prompt
+            else:
+                # Don't print error message to avoid interfering with prompt
+                pass
+        except (IOError, OSError):
+            # Don't print error message to avoid interfering with prompt
+            pass
+    elif args[0].isdigit():
+        # Show last n entries
         n = int(args[0])
         total = readline.get_current_history_length()
         start = max(1, total - n + 1)
@@ -39,10 +79,11 @@ def history_cmd(*args):
             if item:
                 print(f"    {i}  {item}")
     else:
-        for i in range(1, readline.get_current_history_length() + 1):
-            item = readline.get_history_item(i)
-            if item:
-                print(f"    {i}  {item}")
+        print("Usage: history [n] | history [-c|-w|-r] [file]")
+        print("  n     : show last n history entries")
+        print("  -c    : clear history")
+        print("  -w    : write history to file")
+        print("  -r    : read history from file")
 
 
 def parse_args(line):
@@ -279,15 +320,24 @@ def main():
 
     # Setup history
     try:
-        # Only load history if we're in an interactive terminal
-        if sys.stdin.isatty() and os.path.exists(HISTORY_FILE):
+        # Load history on startup (both interactive and non-interactive)
+        if os.path.exists(HISTORY_FILE):
             readline.read_history_file(HISTORY_FILE)
+            # Limit history file size to prevent it from growing too large
+            readline.set_history_length(1000)
     except (IOError, OSError):
         pass
     
-    # Only save history if we're in an interactive terminal
-    if sys.stdin.isatty():
-        atexit.register(lambda: readline.write_history_file(HISTORY_FILE))
+    # Register history save function for both interactive and non-interactive modes
+    def save_history():
+        try:
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(HISTORY_FILE), exist_ok=True)
+            readline.write_history_file(HISTORY_FILE)
+        except (IOError, OSError):
+            pass
+    
+    atexit.register(save_history)
 
     # print("Shell started. Type 'exit' to quit.")
     
@@ -297,15 +347,28 @@ def main():
             if not line.strip():
                 continue
 
-            # Don't add empty lines or duplicate consecutive lines to history
+            # Add command to history (avoid duplicates and empty lines)
             if line.strip():
                 # Check if this is different from the last history item
-                last_item = None
-                if readline.get_current_history_length() > 0:
-                    last_item = readline.get_history_item(readline.get_current_history_length())
+                should_add = True
+                history_len = readline.get_current_history_length()
                 
-                if last_item != line:
+                if history_len > 0:
+                    last_item = readline.get_history_item(history_len)
+                    if last_item == line:
+                        should_add = False
+                
+                if should_add:
                     readline.add_history(line)
+                    
+                    # Optional: Periodically save history during long sessions
+                    # This ensures history is preserved even if shell crashes
+                    new_len = readline.get_current_history_length()
+                    if new_len % 50 == 0:  # Save every 50 commands
+                        try:
+                            readline.write_history_file(HISTORY_FILE)
+                        except (IOError, OSError):
+                            pass
 
             if '|' in line:
                 run_pipeline(line)
