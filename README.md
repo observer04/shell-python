@@ -24,9 +24,3 @@ python3 app/main.py
 ```
 
 You can then start typing commands as you would in a regular shell.
-
-## Progress Log
-- **2025-06-07:** Set up REPL loop using `while` instead of recursion.
-
-## Notes
-- for repl: while instead of main inside main as recursion may cause buffer overflow if it runs too long.
