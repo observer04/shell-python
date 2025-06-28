@@ -18,7 +18,9 @@ class HistoryManager:
         self.last_append_pos = 0
     def load(self):
         try:
-            if sys.stdin.isatty() and os.path.exists(self.file):
+            # Check if we're in a test environment - don't load persistent history during tests
+            is_test = not (sys.stdin.isatty() and sys.stdout.isatty()) or os.getenv('TESTING')
+            if not is_test and os.path.exists(self.file):
                 readline.read_history_file(self.file)
                 self.session_start = readline.get_current_history_length()
                 self.last_append_pos = self.session_start
@@ -27,7 +29,9 @@ class HistoryManager:
             pass
     def save(self):
         try:
-            if sys.stdin.isatty():
+            # Check if we're in a test environment - don't save persistent history during tests
+            is_test = not (sys.stdin.isatty() and sys.stdout.isatty()) or os.getenv('TESTING')
+            if not is_test:
                 d = os.path.dirname(self.file)
                 if d: os.makedirs(d, exist_ok=True)
                 readline.write_history_file(self.file)
