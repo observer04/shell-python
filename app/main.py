@@ -179,12 +179,17 @@ def run_cmd(cmd, args, stdin_f, stdout_f, stdout_app, stderr_f, stderr_app):
         if cmd in BUILTINS:
             BUILTINS[cmd](*args)
         else:
-            subprocess.run(
-                [cmd, *args],
-                stdin=(f if stdin_f else None),
-                stdout=(out if stdout_f else None),
-                stderr=(err if stderr_f else None)
-            )
+            try:
+                subprocess.run(
+                    [cmd, *args],
+                    stdin=(f if stdin_f else None),
+                    stdout=(out if stdout_f else None),
+                    stderr=(err if stderr_f else None)
+                )
+            except FileNotFoundError:
+                print(f"{cmd}: command not found")
+            except Exception as e:
+                print(f"{cmd}: command not found")
 
 def get_all_commands():
     paths= os.environ.get("PATH", "").split(os.pathsep)
@@ -313,14 +318,11 @@ def main():
             run_cmd(cmd, cmd_args, stdin_file, stdout_file, stdout_append, stderr_file, stderr_append)
 
         except KeyboardInterrupt:
-            print() # Move to a new line after Ctrl+C
-            continue # Go to the next prompt
+            print() 
+            continue 
         except EOFError:
-            print()  # Add newline before exit
-            break # Exit on Ctrl+D
-        except Exception as e:
-            # This will now only catch other runtime errors
-            print(f"An unexpected error occurred: {e}", file=sys.stderr)
+            print()  
+            break
 
 
 if __name__ == "__main__":
