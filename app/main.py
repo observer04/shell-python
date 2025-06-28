@@ -10,6 +10,66 @@ import atexit
 
 HISTORY_FILE = os.path.expanduser("~/.your_shell_history")
 
+# Wrap all history logic in a class
+class HistoryManager:
+    def __init__(self, file_path):
+        self.file = file_path
+        self.session_start = 0
+        self.last_append_pos = 0
+    def load(self):
+        try:
+            if sys.stdin.isatty() and os.path.exists(self.file):
+                readline.read_history_file(self.file)
+                self.session_start = readline.get_current_history_length()
+                self.last_append_pos = self.session_start
+                readline.set_history_length(1000)
+        except:
+            pass
+    def save(self):
+        try:
+            if sys.stdin.isatty():
+                d = os.path.dirname(self.file)
+                if d: os.makedirs(d, exist_ok=True)
+                readline.write_history_file(self.file)
+        except:
+            pass
+    def add(self, line):
+        if not line.strip(): return
+        n = readline.get_current_history_length()
+        last = readline.get_history_item(n) if n>0 else None
+        if last != line:
+            readline.add_history(line)
+    def history_cmd(self, *args):
+        if not args:
+            start, end = 1, readline.get_current_history_length()+1
+        elif args[0].isdigit():
+            n=int(args[0]); tot=readline.get_current_history_length(); start=max(1, tot-n+1); end=tot+1
+        elif args[0] in ('-c','-w','-a','-r'):
+            mode=args[0]; f=args[1] if len(args)>1 else self.file
+            try:
+                d=os.path.dirname(f);
+                if mode=='-c': readline.clear_history(); print("History cleared"); return
+                if d: os.makedirs(d, exist_ok=True)
+                if mode=='-w': readline.write_history_file(f); return
+                if mode=='-r' and os.path.exists(f): readline.read_history_file(f); return
+                if mode=='-a':
+                    tot=readline.get_current_history_length()
+                    with open(f,'a') as fh:
+                        for i in range(self.last_append_pos+1, tot+1): item=readline.get_history_item(i); fh.write(item+'\n')
+                    self.last_append_pos = tot
+                    return
+            except:
+                return
+        else:
+            print("Usage: history [n] | history [-c|-w|-r|-a] [file]"); return
+        for i in range(start,end):
+            it=readline.get_history_item(i)
+            if it: print(f"    {i}  {it}")
+
+# Instantiate manager
+history_mgr = HistoryManager(HISTORY_FILE)
+
+# ...existing code...
 def type_cmd(cmd, *_):
     if cmd in BUILTINS:
         print(f"{cmd} is a shell builtin")
@@ -26,63 +86,6 @@ def cdh(path=None, *_):
         os.chdir(path)
     except FileNotFoundError:
         print(f"cd: {path}: No such file or directory")
-
-
-def history_cmd(*args):
-    """Enhanced history command with support for:
-    - history: show all history
-    - history n: show last n entries
-    - history -c: clear history
-    - history -w [file]: write current history to file
-    - history -r [file]: read history from file
-    """
-    if not args:
-        # Show all history
-        for i in range(1, readline.get_current_history_length() + 1):
-            item = readline.get_history_item(i)
-            if item:
-                print(f"    {i}  {item}")
-    elif args[0] == "-c":
-        # Clear history
-        readline.clear_history()
-        print("History cleared")
-    elif args[0] == "-w":
-        # Write history to file, include this command
-        file_path = args[1] if len(args) > 1 else HISTORY_FILE
-        try:
-            # Create directory only if the path contains a directory
-            dir_path = os.path.dirname(file_path)
-            if dir_path:
-                os.makedirs(dir_path, exist_ok=True)
-            readline.write_history_file(file_path)
-        except (IOError, OSError):
-            pass
-    elif args[0] == "-r":
-        # Read history from file
-        file_path = args[1] if len(args) > 1 else HISTORY_FILE
-        try:
-            if os.path.exists(file_path):
-                readline.read_history_file(file_path)
-            else:
-                pass
-        except (IOError, OSError):
-            pass
-    elif args[0].isdigit():
-        # Show last n entries
-        n = int(args[0])
-        total = readline.get_current_history_length()
-        start = max(1, total - n + 1)
-        end = total + 1
-        for i in range(start, end):
-            item = readline.get_history_item(i)
-            if item:
-                print(f"    {i}  {item}")
-    else:
-        print("Usage: history [n] | history [-c|-w|-r] [file]")
-        print("  n     : show last n history entries")
-        print("  -c    : clear history")
-        print("  -w    : write history to file")
-        print("  -r    : read history from file")
 
 
 def parse_args(line):
@@ -135,7 +138,7 @@ BUILTINS = {
     "type": type_cmd,
     "pwd" : lambda *_ : print(os.getcwd()),
     "cd"  : cdh,
-    "history": history_cmd
+    "history": history_mgr.history_cmd
 }
 
 def run_pipeline(line):
@@ -335,41 +338,15 @@ def completion_display_hook(substitution, matches, longest_match_length):
 
 
 def main():
-    # Get all commands at startup
-    all_commands = get_all_commands()
-    
-    # setup bash-like completion via the simplified BashCompleter
-    completer = BashCompleter(all_commands)
+    # Load history and register save on exit
+    history_mgr.load()
+    atexit.register(history_mgr.save)
+
+    # Setup bash-like completion via the simplified BashCompleter
+    completer = BashCompleter(get_all_commands())
     readline.set_completer(completer)
     readline.parse_and_bind("tab: complete")
     readline.set_completion_display_matches_hook(completion_display_hook)
-
-    # Setup history
-    try:
-        # Only load history in interactive mode to avoid test pollution
-        if sys.stdin.isatty() and os.path.exists(HISTORY_FILE):
-            readline.read_history_file(HISTORY_FILE)
-            # Limit history file size to prevent it from growing too large
-            readline.set_history_length(1000)
-    except (IOError, OSError):
-        pass
-    
-    # Register history save function
-    def save_history():
-        try:
-            # Only save in interactive mode
-            if sys.stdin.isatty():
-                # Ensure directory exists
-                dir_path = os.path.dirname(HISTORY_FILE)
-                if dir_path:
-                    os.makedirs(dir_path, exist_ok=True)
-                readline.write_history_file(HISTORY_FILE)
-        except (IOError, OSError):
-            pass
-    
-    atexit.register(save_history)
-
-    # print("Shell started. Type 'exit' to quit.")
     
     while True:
         try:
@@ -377,28 +354,8 @@ def main():
             if not line.strip():
                 continue
 
-            # Add command to history (avoid duplicates and empty lines)
-            if line.strip():
-                # Check if this is different from the last history item
-                should_add = True
-                history_len = readline.get_current_history_length()
-                
-                if history_len > 0:
-                    last_item = readline.get_history_item(history_len)
-                    if last_item == line:
-                        should_add = False
-                
-                if should_add:
-                    readline.add_history(line)
-                    
-                    # Optional: Periodically save history during long sessions
-                    # This ensures history is preserved even if shell crashes
-                    new_len = readline.get_current_history_length()
-                    if new_len % 50 == 0:  # Save every 50 commands
-                        try:
-                            readline.write_history_file(HISTORY_FILE)
-                        except (IOError, OSError):
-                            pass
+            # Record command in history
+            history_mgr.add(line)
 
             if '|' in line:
                 run_pipeline(line)
@@ -408,24 +365,23 @@ def main():
             if not command:
                 continue
 
-            cmd = command[0]
-            args = command[1:]
-            
+            cmd, *args = command
             result = parse_redirection(args)
             if result is None:
                 continue
-            
             cmd_args, stdin_file, stdout_file, stdout_append, stderr_file, stderr_append = result
-            
             run_cmd(cmd, cmd_args, stdin_file, stdout_file, stdout_append, stderr_file, stderr_append)
 
         except KeyboardInterrupt:
-            print() 
-            continue 
+            print()
+            continue
         except EOFError:
-            print()  
+            print()
             break
 
 
 if __name__ == "__main__":
+    # Initialize history manager
+    history_mgr = HistoryManager(HISTORY_FILE)
+
     main()
